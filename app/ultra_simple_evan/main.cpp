@@ -29,6 +29,9 @@
 #include <signal.h>
 #include <string.h>
 #include <libudev.h>
+#include <locale.h>
+#include <unistd.h>
+#include <string.h>
 
 #include "sl_lidar.h" 
 #include "sl_lidar_driver.h"
@@ -52,6 +55,195 @@ static inline void delay(sl_word_size_t ms){
 #endif
 
 using namespace sl;
+int gl (void)
+{
+	struct udev *udev;
+	struct udev_enumerate *enumerate;
+	struct udev_list_entry *devices, *dev_list_entry;
+	struct udev_device *dev;
+	
+	/* Create the udev object */
+	udev = udev_new();
+	if (!udev) {
+		printf("Can't create udev\n");
+		exit(1);
+	}
+	
+	/* Create a list of the devices in the 'tty' subsystem. */
+	enumerate = udev_enumerate_new(udev);
+	udev_enumerate_add_match_subsystem(enumerate, "tty");
+	udev_enumerate_scan_devices(enumerate);
+	devices = udev_enumerate_get_list_entry(enumerate);
+	/* For each item enumerated, print out its information.
+	   udev_list_entry_foreach is a macro which expands to
+	   a loop. The loop will be executed for each member in
+	   devices, setting dev_list_entry to a list entry
+	   which contains the device's path in /sys. */
+	udev_list_entry_foreach(dev_list_entry, devices) {
+		const char *path;
+		
+		/* Get the filename of the /sys entry for the device
+		   and create a udev_device object (dev) representing it */
+		path = udev_list_entry_get_name(dev_list_entry);
+		dev = udev_device_new_from_syspath(udev, path);
+		printf("Device Node Path: %s\n", udev_device_get_devnode(dev));
+
+		/* usb_device_get_devnode() returns the path to the device node
+		   itself in /dev. */
+
+		/* The device pointed to by dev contains information about
+		   the hidraw device. In order to get information about the
+		   USB device, get the parent device with the
+		   subsystem/devtype pair of "usb"/"usb_device". This will
+		   be several levels up the tree, but the function will find
+		   it.*/
+		dev = udev_device_get_parent_with_subsystem_devtype(
+		       dev,
+		       "usb",
+		       "usb_device");
+		if (!dev) {
+			printf("Unable to find parent usb device.");
+		}
+	
+		/* From here, we can call get_sysattr_value() for each file
+		   in the device's /sys entry. The strings passed into these
+		   functions (idProduct, idVendor, serial, etc.) correspond
+		   directly to the files in the directory which represents
+		   the USB device. Note that USB strings are Unicode, UCS2
+		   encoded, but the strings returned from
+		   udev_device_get_sysattr_value() are UTF-8 encoded. */
+		/*printf("  VID/PID: %s %s\n",
+		        udev_device_get_sysattr_value(dev,"idVendor"),
+		        udev_device_get_sysattr_value(dev, "idProduct"));
+			*/
+		const char * val = udev_device_get_sysattr_value(dev,"idVendor");
+		const char * lidar = "10c4";
+		if (val != NULL){
+			if (strcmp(val, lidar) == 0){
+				printf("LIDAR!\n");		
+			}
+		}
+		/*printf("  %s\n  %s\n",
+		        udev_device_get_sysattr_value(dev,"manufacturer"),
+		        udev_device_get_sysattr_value(dev,"product"));
+		printf("  serial: %s\n",
+		         udev_device_get_sysattr_value(dev, "serial"));
+			 */
+		udev_device_unref(dev);
+	}
+	/* Free the enumerator object */
+	udev_enumerate_unref(enumerate);
+
+	udev_unref(udev);
+
+	return 0;       
+}
+
+char** get_lidars (char ** ls )
+{
+	struct udev *udev;
+	struct udev_enumerate *enumerate;
+	struct udev_list_entry *devices, *dev_list_entry;
+	struct udev_device *dev;
+	int index = 0;
+	char *lidars [3];
+	
+	/* Create the udev object */
+	
+	udev = udev_new();
+	if (!udev) {
+		printf("Can't create udev\n");
+		exit(1);
+	}
+	
+	/* Create a list of the devices in the 'tty' subsystem. */
+	enumerate = udev_enumerate_new(udev);
+	udev_enumerate_add_match_subsystem(enumerate, "tty");
+	udev_enumerate_scan_devices(enumerate);
+	devices = udev_enumerate_get_list_entry(enumerate);
+	/* For each item enumerated, print out its information.
+	   udev_list_entry_foreach is a macro which expands to
+	   a loop. The loop will be executed for each member in
+	   devices, setting dev_list_entry to a list entry
+	   which contains the device's path in /sys. */
+	udev_list_entry_foreach(dev_list_entry, devices) {
+		printf("START");
+		const char *path;
+		
+		/* Get the filename of the /sys entry for the device
+		   and create a udev_device object (dev) representing it */
+		path = udev_list_entry_get_name(dev_list_entry);
+		dev = udev_device_new_from_syspath(udev, path);
+		//const char *tty_path = udev_device_get_devnode(dev);
+		//printf("Device Node Path: %s\n", udev_device_get_devnode(dev));
+		udev_device_unref(dev);
+		/* usb_device_get_devnode() returns the path to the device node
+		   itself in /dev. */
+
+		/* The device pointed to by dev contains information about
+		   the hidraw device. In order to get information about the
+		   USB device, get the parent device with the
+		   subsystem/devtype pair of "usb"/"usb_device". This will
+		   be several levels up the tree, but the function will find
+		   it.*/
+
+
+		/*
+		dev = udev_device_get_parent_with_subsystem_devtype(
+		       dev,
+		       "usb",
+		       "usb_device");
+		if(dev){
+
+		*/
+			/* From here, we can call get_sysattr_value() for each file
+			   in the device's /sys entry. The strings passed into these
+			   functions (idProduct, idVendor, serial, etc.) correspond
+			   directly to the files in the directory which represents
+			   the USB device. Note that USB strings are Unicode, UCS2
+			   encoded, but the strings returned from
+			   udev_device_get_sysattr_value() are UTF-8 encoded. */
+			/*printf("  VID/PID: %s %s\n",
+				udev_device_get_sysattr_value(dev,"idVendor"),
+				udev_device_get_sysattr_value(dev, "idProduct"));
+				*/
+
+		/*
+			const char * val = udev_device_get_sysattr_value(dev,"idVendor");
+			const char * lidar = "10c4";
+			if (val != NULL){
+				if (strcmp(val, lidar) == 0){
+					printf("%s\n", tty_path);
+					char new_s[100];
+					strcpy(new_s, tty_path);	
+					lidars[index] = new_s;
+					printf("LIDAR!\n");		
+					index ++;
+				}
+			}
+
+			/*printf("  %s\n  %s\n",
+				udev_device_get_sysattr_value(dev,"manufacturer"),
+				udev_device_get_sysattr_value(dev,"product"));
+			printf("  serial: %s\n",
+				 udev_device_get_sysattr_value(dev, "serial"));
+				 */
+		//}
+	//		udev_device_unref(dev);
+		printf("ASD\n");
+			
+	}
+	printf("FREE");	
+	exit(1);
+	/* Free the enumerator object */
+	udev_enumerate_unref(enumerate);
+
+	udev_unref(udev);
+
+	printf("asdf");
+	//ls = lidars;
+	//return ls;       
+}
 
 bool checkSLAMTECLIDARHealth(ILidarDriver * drv)
 {
@@ -193,16 +385,26 @@ int main(int argc, const char * argv[]) {
 
     printf("Ultra simple LIDAR data grabber for SLAMTEC LIDAR.\n"
            "Version: %s\n", "SL_LIDAR_SDK_VERSION");
+    char ** a_lidars;
+    //a_lidars  = get_lidars(a_lidars);
+    gl();
+    exit(1);
+    printf("PRINTING A LIDAR");
+    for (int i = 0; i <3; i++){
+    	printf("%s", a_lidars[i]);	
+    }
 
 	 
     char * opt_channel_param_first = NULL;
     char * opt_channel_param_second= NULL;
 	opt_channel_param_first = "/dev/ttyUSB0";
-	opt_channel_param_second= "/dev/ttyUSB1";
+
+	//opt_channel_param_first = "/dev/bus/usb/001/011";
+	//opt_channel_param_second= "/dev/ttyUSB1";
 
 
     check_dev(opt_channel_param_first);
-    check_dev(opt_channel_param_second);
+    //check_dev(opt_channel_param_second);
     /*
 on_finished:
     if(drv) {
