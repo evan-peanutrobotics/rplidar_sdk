@@ -88,15 +88,16 @@ void ctrlc(int)
     ctrl_c_pressed = true;
 }
 
-    void check_dev(char * opt_channel_param_first){
-	char * opt_is_channel = NULL; 
-	char * opt_channel = NULL;
-	sl_u32         opt_channel_param_second = 0;
-    sl_u32         baudrateArray[2] = {115200, 256000};
+    int check_dev(char * opt_channel_param_first){
+//	char * opt_is_channel = NULL; 
+//	char * opt_channel = NULL;
+//	sl_u32         opt_channel_param_second = 0;
+//    sl_u32         baudrateArray[2] = {115200, 256000};
+    sl_u32         baudrateArray[1] = {115200};
     sl_result     op_result;
 	int          opt_channel_type = CHANNEL_TYPE_SERIALPORT;
 
-	bool useArgcBaudrate = false;
+//	bool useArgcBaudrate = false;
 
     IChannel* _channel;
     // create the driver instance
@@ -139,7 +140,7 @@ void ctrlc(int)
     }
 
     // print out the device serial number, firmware and hardware version number..
-    printf("SLAMTEC LIDAR S/N: ");
+   /* printf("SLAMTEC LIDAR S/N: ");
     for (int pos = 0; pos < 16 ;++pos) {
         printf("%02X", devinfo.serialnum[pos]);
     }
@@ -150,7 +151,7 @@ void ctrlc(int)
             , devinfo.firmware_version>>8
             , devinfo.firmware_version & 0xFF
             , (int)devinfo.hardware_version);
-
+*/
 
 
     // check health...
@@ -171,16 +172,21 @@ void ctrlc(int)
         size_t   count = _countof(nodes);
 
         op_result = drv->grabScanDataHq(nodes, count);
+        int lidar_passed = 0;
 
         if (SL_IS_OK(op_result)) {
             drv->ascendScanData(nodes, count);
             for (int pos = 0; pos < (int)count ; ++pos) {
-           /*     //printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+/*                printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
                     (nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT) ?"S ":"  ", 
                     (nodes[pos].angle_z_q14 * 90.f) / 16384.f,
                     nodes[pos].dist_mm_q2/4.0f,
                     nodes[pos].quality >> SL_LIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-                    */
+  */                  
+            // We've seen lidars fail reading all 0s. Check for that.
+                if (nodes[pos].dist_mm_q2/4.0f > 0 && ! lidar_passed){
+                    lidar_passed = 1;
+                }       
             }
         }
 //
@@ -192,6 +198,7 @@ void ctrlc(int)
 	delay(200);
 	if(opt_channel_type == CHANNEL_TYPE_SERIALPORT)
         drv->setMotorSpeed(0);
+    return lidar_passed;
     // done!
     }
 
@@ -201,7 +208,8 @@ int main(int argc, const char * argv[]) {
 	struct udev_list_entry *devices, *dev_list_entry;
 	struct udev_device *dev;
 	int dev_index = 0;
-	char dev_array[3][20];
+    const int expected_dev_number = 3;
+	char dev_array[expected_dev_number][20];
 	
 	/* Create the udev object */
 	udev = udev_new();
@@ -217,7 +225,6 @@ int main(int argc, const char * argv[]) {
 	devices = udev_enumerate_get_list_entry(enumerate);
 	udev_list_entry_foreach(dev_list_entry, devices) {
 		const char *path;
-		
 		path = udev_list_entry_get_name(dev_list_entry);
 		dev = udev_device_new_from_syspath(udev, path);
 		char dn [20];
@@ -241,17 +248,30 @@ int main(int argc, const char * argv[]) {
 	udev_enumerate_unref(enumerate);
 
 	udev_unref(udev);
+    if (dev_index < 3){
+        printf("Too few lidar: %i\n", dev_index);
+    }
+    int all_lidars_passed = 1;
 	for (int i = 0; i < dev_index; i++){
-		printf("%s\n", dev_array[i]);
-    		check_dev(dev_array[i]);
+		    // printf("%s\n", dev_array[i]);
+    		all_lidars_passed = all_lidars_passed && check_dev(dev_array[i]);
 	}
+    if (! all_lidars_passed) {
+        printf("Not all lidars returned good data\n\n");
+    }
+    if (dev_index == 3 && all_lidars_passed){
+        printf("Tests passed\n");
+    }
+    else{
+        printf("Not all tests passed\n");
+    }
 
     exit(1);
 
 	 
-    char * opt_channel_param_first = NULL;
-    char * opt_channel_param_second= NULL;
-	opt_channel_param_first = "/dev/ttyUSB0";
+//    char * opt_channel_param_first = NULL;
+//    char * opt_channel_param_second= NULL;
+//	opt_channel_param_first = "/dev/ttyUSB0";
 
 	//opt_channel_param_first = "/dev/bus/usb/001/011";
 	//opt_channel_param_second= "/dev/ttyUSB1";
